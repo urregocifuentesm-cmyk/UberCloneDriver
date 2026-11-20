@@ -17,7 +17,15 @@ npx expo install --check   # alinea versiones nativas con tu SDK de Expo
 cp .env.example .env       # completar variables
 npx expo start
 ```
-`react-native-maps` y `expo-notifications` necesitan un **development build** (`npx expo run:android` / `eas build`) para funcionar completos; Expo Go no basta. Configura `EXPO_PUBLIC_GOOGLE_MAPS_KEY` en `.env`; `app.config.js` la aplica a iOS/Android al generar el proyecto.
+`react-native-maps`, `expo-notifications` y `react-native-webrtc` necesitan un **development build** para funcionar completos; Expo Go no incluye todos estos módulos nativos. Este proyecto usa Expo SDK 53, así que también necesitas una versión de Expo Go compatible con SDK 53 para probarlo con Expo Go.
+
+### Development build para Android
+Se requiere una cuenta de Expo y conexión a Internet para compilar el APK en Expo Application Services (EAS):
+```bash
+npx eas-cli login
+npx eas-cli build --platform android --profile development
+```
+Instala el APK generado en el teléfono y luego inicia el servidor con `npx expo start --lan`. El perfil `development` está definido en `eas.json`. Configura `EXPO_PUBLIC_GOOGLE_MAPS_KEY` en `.env`; `app.config.js` la aplica a iOS/Android al generar el proyecto.
 Para ejecutar la interfaz en el navegador usa `npm run web` (localhost). La web usa Google Maps y rutas reales cuando hay una clave válida; si no está configurada o falla, muestra OpenStreetMap como alternativa.
 
 ## Variables de entorno
