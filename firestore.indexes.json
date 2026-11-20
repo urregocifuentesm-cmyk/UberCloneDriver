@@ -1,0 +1,21 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "tripMessages",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "tripId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "tripCalls",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "tripId", "order": "ASCENDING" },
+        { "fieldPath": "calleeId", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

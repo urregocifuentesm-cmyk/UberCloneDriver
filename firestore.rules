@@ -1,0 +1,143 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isTripParticipant(tripId) {
+      let tripPath = /databases/$(database)/documents/trips/$(tripId);
+      let trip = get(tripPath);
+      return request.auth != null
+        && exists(tripPath)
+        && (trip.data.driverId == request.auth.uid || trip.data.passengerId == request.auth.uid);
+    }
+
+    function isActiveTrip(tripId) {
+      let trip = get(/databases/$(database)/documents/trips/$(tripId));
+      return trip.data.status in ['accepted', 'driver_arriving', 'in_progress'];
+    }
+
+    function hasMatchingSenderRole(tripId) {
+      let trip = get(/databases/$(database)/documents/trips/$(tripId));
+      return (trip.data.driverId == request.auth.uid && request.resource.data.senderRole == 'driver')
+        || (trip.data.passengerId == request.auth.uid && request.resource.data.senderRole == 'passenger');
+    }
+
+    function isValidCallPair(tripId, callerId, calleeId) {
+      let trip = get(/databases/$(database)/documents/trips/$(tripId));
+      return (trip.data.driverId == callerId && trip.data.passengerId == calleeId)
+        || (trip.data.passengerId == callerId && trip.data.driverId == calleeId);
+    }
+
+    function isCallParticipant(callId) {
+      let callPath = /databases/$(database)/documents/tripCalls/$(callId);
+      let call = get(callPath);
+      return request.auth != null
+        && exists(callPath)
+        && (call.data.callerId == request.auth.uid || call.data.calleeId == request.auth.uid);
+    }
+
+    function isOpenCall(callId) {
+      let call = get(/databases/$(database)/documents/tripCalls/$(callId));
+      return call.data.status in ['preparing', 'ringing', 'active'];
+    }
+
+    match /drivers/{uid} {
+      allow read: if request.auth != null;
+      // El conductor no puede aprobarse a sí mismo
+      allow create: if request.auth.uid == uid && request.resource.data.status == 'pending';
+      allow update: if request.auth.uid == uid && request.resource.data.status == resource.data.status;
+    }
+    match /trips/{tripId} {
+      allow read: if request.auth != null;
+      allow update: if request.auth != null;  // endurecer según el equipo (ver README)
+      allow create: if request.auth != null;
+    }
+    match /tripMessages/{messageId} {
+      allow read: if isTripParticipant(resource.data.tripId);
+      allow create: if isTripParticipant(request.resource.data.tripId)
+        && isActiveTrip(request.resource.data.tripId)
+        && request.resource.data.senderId == request.auth.uid
+        && hasMatchingSenderRole(request.resource.data.tripId)
+        && request.resource.data.senderRole in ['driver', 'passenger']
+        && request.resource.data.text is string
+        && request.resource.data.text.size() > 0
+        && request.resource.data.text.size() <= 1000
+        && request.resource.data.keys().hasOnly([
+          'tripId', 'senderId', 'senderRole', 'senderName', 'text', 'createdAt'
+        ])
+        && request.resource.data.keys().hasAll([
+          'tripId', 'senderId', 'senderRole', 'text', 'createdAt'
+        ]);
+      allow update, delete: if false;
+    }
+    match /tripCalls/{callId} {
+      allow read: if isTripParticipant(resource.data.tripId)
+        && (resource.data.callerId == request.auth.uid || resource.data.calleeId == request.auth.uid);
+      allow create: if isTripParticipant(request.resource.data.tripId)
+        && isActiveTrip(request.resource.data.tripId)
+        && request.resource.data.callerId == request.auth.uid
+        && isValidCallPair(
+          request.resource.data.tripId,
+          request.resource.data.callerId,
+          request.resource.data.calleeId
+        )
+        && request.resource.data.status == 'preparing'
+        && request.resource.data.keys().hasOnly([
+          'tripId', 'callerId', 'callerName', 'calleeId', 'status', 'createdAt'
+        ])
+        && request.resource.data.keys().hasAll([
+          'tripId', 'callerId', 'calleeId', 'status', 'createdAt'
+        ]);
+      allow update: if isTripParticipant(resource.data.tripId)
+        && isActiveTrip(resource.data.tripId)
+        && request.resource.data.tripId == resource.data.tripId
+        && request.resource.data.callerId == resource.data.callerId
+        && request.resource.data.calleeId == resource.data.calleeId
+        && (
+          (
+            request.auth.uid == resource.data.callerId
+            && (
+              (resource.data.status == 'preparing'
+                && request.resource.data.status in ['ringing', 'ended', 'failed'])
+              || (resource.data.status == 'ringing'
+                && request.resource.data.status in ['ended', 'failed', 'missed'])
+              || (resource.data.status == 'active'
+                && request.resource.data.status in ['ended', 'failed'])
+            )
+            && (request.resource.data.status != 'ringing' || request.resource.data.offer is map)
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'offer', 'status', 'updatedAt', 'endedBy'
+            ])
+          )
+          || (
+            request.auth.uid == resource.data.calleeId
+            && (
+              (resource.data.status == 'ringing'
+                && request.resource.data.status in ['active', 'rejected', 'failed'])
+              || (resource.data.status == 'active'
+                && request.resource.data.status in ['ended', 'failed'])
+            )
+            && (request.resource.data.status != 'active' || request.resource.data.answer is map)
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'answer', 'status', 'updatedAt', 'endedBy'
+            ])
+          )
+        );
+      allow delete: if false;
+    }
+    match /tripCallCandidates/{candidateId} {
+      allow read: if isCallParticipant(resource.data.callId)
+        && get(/databases/$(database)/documents/tripCalls/$(resource.data.callId)).data.tripId == resource.data.tripId;
+      allow create: if isCallParticipant(request.resource.data.callId)
+        && isOpenCall(request.resource.data.callId)
+        && get(/databases/$(database)/documents/tripCalls/$(request.resource.data.callId)).data.tripId == request.resource.data.tripId
+        && request.resource.data.senderId == request.auth.uid
+        && request.resource.data.candidate is map
+        && request.resource.data.keys().hasOnly([
+          'callId', 'tripId', 'senderId', 'candidate', 'createdAt'
+        ])
+        && request.resource.data.keys().hasAll([
+          'callId', 'tripId', 'senderId', 'candidate', 'createdAt'
+        ]);
+      allow update, delete: if false;
+    }
+  }
+}

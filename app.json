@@ -1,0 +1,36 @@
+{
+  "expo": {
+    "name": "Rumbora Conductor",
+    "slug": "uberclone-driver",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "uberclonedriver",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "bundleIdentifier": "com.tuequipo.uberclonedriver",
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Necesitamos tu ubicación para recibir solicitudes cercanas.",
+        "NSMicrophoneUsageDescription": "Rumbora necesita el micrófono para las llamadas de voz del viaje.",
+        "NSCameraUsageDescription": "Para tomar la foto de perfil, del vehículo y de los documentos.",
+        "NSPhotoLibraryUsageDescription": "Para elegir fotos de tu galería."
+      }
+    },
+    "android": {
+      "package": "com.tuequipo.uberclonedriver",
+      "permissions": ["ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION", "CAMERA"]
+    },
+    "plugins": [
+      "expo-location",
+      "expo-image-picker",
+      "expo-notifications",
+      "expo-asset",
+      [
+        "@config-plugins/react-native-webrtc",
+        {
+          "microphonePermission": "Rumbora necesita el micrófono para las llamadas de voz del viaje."
+        }
+      ]
+    ]
+  }
+}
